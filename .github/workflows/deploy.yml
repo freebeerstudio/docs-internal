@@ -27,13 +27,6 @@ jobs:
           vercel-args: '--prod'
           working-directory: ./
 
-      - name: Comment on commit
+      - name: Deployment complete
         if: success()
-        uses: peter-evans/commit-comment@v3
-        with:
-          body: |
-            ✅ Documentation deployed to production
-
-            🔗 Visit: https://docs.internal.freebeer.ai
-
-            🤖 Deployed via GitHub Actions
+        run: echo "✅ Documentation deployed to https://docs.internal.freebeer.ai"
