@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudflare DNS Migration Guide - Free Beer Studio Docs</title>
+    <meta name="description" content="Complete guide to migrating DNS from SiteGround to Cloudflare for automated DNS management">
+    <link rel="stylesheet" href="/css/docs.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h1>Free Beer Studio</h1>
+                <p class="subtitle">Internal Docs</p>
+            </div>
+
+            <div class="nav-section">
+                <h3>Getting Started</h3>
+                <ul>
+                    <li><a href="/">Overview</a></li>
+                    <li><a href="/getting-started/quick-start.html">Quick Start</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <h3>Automation</h3>
+                <ul>
+                    <li><a href="/automation/multi-client-pipeline.html">Multi-Client Pipeline</a></li>
+                    <li><a href="/automation/phase-4-testing.html">Phase 4 Testing Results</a></li>
+                    <li><a href="/automation/lessons-learned.html">Lessons Learned</a></li>
+                    <li><a href="/automation/onboarding-script.html">Onboarding Script Reference</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <h3>Infrastructure</h3>
+                <ul>
+                    <li><a href="/infrastructure/cloudflare.html">Cloudflare DNS</a></li>
+                    <li><a href="/infrastructure/vercel.html">Vercel Deployment</a></li>
+                    <li><a href="/infrastructure/github-actions.html">GitHub Actions</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <h3>Templates</h3>
+                <ul>
+                    <li><a href="/templates/client-template.html">Client Template</a></li>
+                    <li><a href="/templates/workflow-templates.html">Workflow Templates</a></li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="content">
+            <header class="page-header">
+                <h1>Cloudflare DNS Migration Guide</h1>
+                <p class="lead">Migrate freebeer.ai DNS to Cloudflare for 100% automated DNS management</p>
+            </header>
+
+            <div class="alert alert-info">
+                <strong>Purpose:</strong> Enable programmatic DNS management via Cloudflare API<br>
+                <strong>Timeline:</strong> 30 minutes of work + 24-48 hours DNS propagation<br>
+                <strong>Status:</strong> Production-ready
+            </div>
+
+            <section class="section">
+                <h2>Prerequisites</h2>
+                <ul>
+                    <li>Access to GoDaddy account (freebeer.ai registrar)</li>
+                    <li>Access to SiteGround account (current DNS host)</li>
+                    <li>Email address for Cloudflare account</li>
+                    <li>Test domain for practice (optional but recommended)</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Part 1: Practice with Test Domain (Optional)</h2>
+
+                <h3>Why Practice First?</h3>
+                <ul>
+                    <li>Gain confidence with the process</li>
+                    <li>Understand what happens during migration</li>
+                    <li>No risk to production freebeer.ai domain</li>
+                    <li>Can test DNS changes without affecting live sites</li>
+                </ul>
+
+                <div class="alert alert-success">
+                    <strong>Recommended:</strong> If you have a test domain, run through the complete process first before proceeding with freebeer.ai migration.
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>Part 2: Cloudflare Account Setup</h2>
+
+                <h3>Step 1: Create Cloudflare Account</h3>
+                <ol>
+                    <li>Go to: <a href="https://dash.cloudflare.com/sign-up" target="_blank">https://dash.cloudflare.com/sign-up</a></li>
+                    <li>Enter email address</li>
+                    <li>Create password</li>
+                    <li>Verify email (check inbox for verification link)</li>
+                    <li>Log in to Cloudflare dashboard</li>
+                </ol>
+
+                <p><strong>Checkpoint:</strong> You should see empty Cloudflare dashboard with "Add a Site" button</p>
+
+                <h3>Step 2: Add freebeer.ai Domain</h3>
+                <ol>
+                    <li>Click <strong>"Add a Site"</strong> button</li>
+                    <li>Enter domain: <code>freebeer.ai</code></li>
+                    <li>Click <strong>"Add site"</strong></li>
+                    <li>Choose plan: <strong>Free</strong> (scroll down, it's at the bottom)</li>
+                    <li>Click <strong>"Continue"</strong></li>
+                </ol>
+
+                <p>Cloudflare will now scan your existing DNS records from SiteGround (~60 seconds).</p>
+
+                <h3>Step 3: Review DNS Records</h3>
+                <p>Cloudflare will display all DNS records it found. <strong>IMPORTANT:</strong> Review carefully!</p>
+
+                <p><strong>Expected records for freebeer.ai:</strong></p>
+                <pre><code>Type: A
+Name: @ (or freebeer.ai)
+Content: [SiteGround IP address]
+TTL: Auto
+
+Type: CNAME
+Name: www
+Content: freebeer.ai
+TTL: Auto
+
+Type: CNAME
+Name: dev
+Content: cname.vercel-dns.com
+TTL: Auto
+
+Type: CNAME
+Name: staging
+Content: cname.vercel-dns.com
+TTL: Auto
+
+Type: CNAME
+Name: app
+Content: cname.vercel-dns.com
+TTL: Auto
+
+... (any other records you have)</code></pre>
+
+                <p><strong>What to do:</strong></p>
+                <ol>
+                    <li><strong>Review each record</strong> - make sure nothing is missing</li>
+                    <li><strong>Check the three Vercel CNAMEs</strong> are present (dev, staging, app)</li>
+                    <li>If any records are missing, note them down</li>
+                    <li>Click <strong>"Continue"</strong></li>
+                </ol>
+
+                <div class="alert alert-warning">
+                    <strong>If something looks wrong:</strong> Don't panic! You can add missing records manually later in Cloudflare dashboard.
+                </div>
+
+                <h3>Step 4: Get Nameserver Information</h3>
+                <p>Cloudflare will show you <strong>two nameservers</strong> to use. They'll look like:</p>
+                <pre><code>bella.ns.cloudflare.com
+kurt.ns.cloudflare.com</code></pre>
+
+                <div class="alert alert-error">
+                    <strong>IMPORTANT:</strong> Copy these down! You'll need them for the next step.<br>
+                    Don't click "Done" yet - keep this page open in a browser tab.
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>Part 3: Update Nameservers at GoDaddy</h2>
+
+                <h3>Step 5: Log into GoDaddy</h3>
+                <ol>
+                    <li>Go to: <a href="https://www.godaddy.com" target="_blank">https://www.godaddy.com</a></li>
+                    <li>Log in to your account</li>
+                    <li>Click <strong>"My Products"</strong></li>
+                    <li>Find <strong>freebeer.ai</strong> in your domain list</li>
+                    <li>Click <strong>"DNS"</strong> or <strong>"Manage DNS"</strong></li>
+                </ol>
+
+                <h3>Step 6: Change Nameservers</h3>
+                <ol>
+                    <li>Scroll down to <strong>"Nameservers"</strong> section</li>
+                    <li>Click <strong>"Change"</strong> or <strong>"Manage"</strong></li>
+                    <li>Select <strong>"Custom"</strong> or <strong>"Enter my own nameservers"</strong></li>
+                </ol>
+
+                <p><strong>Current nameservers</strong> (SiteGround - you're replacing these):</p>
+                <pre><code>ns1.siteground.com
+ns2.siteground.com
+(or similar)</code></pre>
+
+                <p><strong>New nameservers</strong> (Cloudflare - from Step 4):</p>
+                <pre><code>bella.ns.cloudflare.com
+kurt.ns.cloudflare.com
+(use the exact names Cloudflare gave you)</code></pre>
+
+                <ol start="4">
+                    <li><strong>Remove</strong> old SiteGround nameservers</li>
+                    <li><strong>Add</strong> new Cloudflare nameservers (both of them)</li>
+                    <li>Click <strong>"Save"</strong></li>
+                </ol>
+
+                <div class="alert alert-warning">
+                    <strong>GoDaddy will warn you:</strong> "Changing nameservers may affect your website, email, etc."<br>
+                    This is normal. Click <strong>"Continue"</strong> or <strong>"Yes"</strong>.
+                </div>
+
+                <h3>Step 7: Confirm in Cloudflare</h3>
+                <ol>
+                    <li>Go back to Cloudflare tab</li>
+                    <li>Click <strong>"Done, check nameservers"</strong></li>
+                </ol>
+
+                <p><strong>Expected result:</strong> One of two things will happen:</p>
+
+                <p><strong>Option A:</strong> "Great! We detected your nameservers"</p>
+                <ul>
+                    <li>Cloudflare immediately sees the change</li>
+                    <li>You're done! Skip to Step 8</li>
+                </ul>
+
+                <p><strong>Option B:</strong> "We haven't detected your nameservers yet"</p>
+                <ul>
+                    <li>Normal! DNS propagation takes time</li>
+                    <li>Cloudflare will send you email when detected</li>
+                    <li>Continue to Step 8</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Part 4: Wait for DNS Propagation</h2>
+
+                <h3>Step 8: Monitoring Propagation</h3>
+                <p><strong>What's happening:</strong></p>
+                <ul>
+                    <li>GoDaddy has updated nameservers</li>
+                    <li>DNS servers worldwide are caching old nameservers</li>
+                    <li>Takes 24-48 hours for all servers to see new nameservers</li>
+                </ul>
+
+                <h3>How to Check Progress</h3>
+
+                <p><strong>Method 1: Cloudflare Dashboard</strong></p>
+                <ul>
+                    <li>Log into Cloudflare</li>
+                    <li>Check freebeer.ai status</li>
+                    <li>Will show "Active" when fully migrated</li>
+                </ul>
+
+                <p><strong>Method 2: Command Line</strong></p>
+                <pre><code># Check what nameservers are being returned
+dig NS freebeer.ai
+
+# Should eventually show:
+# freebeer.ai.  86400  IN  NS  bella.ns.cloudflare.com.
+# freebeer.ai.  86400  IN  NS  kurt.ns.cloudflare.com.</code></pre>
+
+                <p><strong>Method 3: Online Tool</strong></p>
+                <ul>
+                    <li>Visit: <a href="https://www.whatsmydns.net" target="_blank">https://www.whatsmydns.net</a></li>
+                    <li>Enter: <code>freebeer.ai</code></li>
+                    <li>Type: <code>NS</code></li>
+                    <li>Check: Should see Cloudflare nameservers propagating globally</li>
+                </ul>
+
+                <p><strong>Timeline:</strong></p>
+                <table>
+                    <tr>
+                        <th>Time</th>
+                        <th>Status</th>
+                    </tr>
+                    <tr>
+                        <td>0-6 hours</td>
+                        <td>Partial propagation</td>
+                    </tr>
+                    <tr>
+                        <td>6-24 hours</td>
+                        <td>Most servers updated</td>
+                    </tr>
+                    <tr>
+                        <td>24-48 hours</td>
+                        <td>Full global propagation</td>
+                    </tr>
+                </table>
+
+                <h3>Step 9: Verify Existing Sites Still Work</h3>
+                <p><strong>After propagation completes</strong> (Cloudflare shows "Active"):</p>
+
+                <p>Test each of your existing sites:</p>
+                <pre><code># Test main domain
+curl -I https://freebeer.ai
+# Should return: 200 OK
+
+# Test PAI Dashboard environments
+curl -I https://dev.freebeer.ai
+curl -I https://staging.freebeer.ai
+curl -I https://app.freebeer.ai
+# All should return: 200 OK</code></pre>
+
+                <p><strong>In browser:</strong> Visit each URL and confirm sites load normally.</p>
+
+                <div class="alert alert-warning">
+                    <strong>If sites don't load:</strong>
+                    <ol>
+                        <li>Clear browser cache (Cmd+Shift+R on Mac)</li>
+                        <li>Wait another 12 hours for DNS to fully propagate</li>
+                        <li>Check Cloudflare DNS records match SiteGround records</li>
+                    </ol>
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>Part 5: Cloudflare Configuration</h2>
+
+                <h3>Step 10: SSL/TLS Settings</h3>
+                <div class="alert alert-error">
+                    <strong>IMPORTANT:</strong> Configure SSL settings correctly
+                </div>
+
+                <ol>
+                    <li>Go to Cloudflare dashboard → freebeer.ai</li>
+                    <li>Click <strong>"SSL/TLS"</strong> in left sidebar</li>
+                    <li>Under <strong>"Overview"</strong>, select: <strong>"Full (strict)"</strong></li>
+                </ol>
+
+                <p><strong>Why:</strong> Your sites already have SSL from Vercel. This setting ensures Cloudflare's SSL works with Vercel's SSL.</p>
+
+                <h3>Step 11: Enable Auto-Minify (Optional)</h3>
+                <p>For better performance:</p>
+                <ol>
+                    <li>Go to: <strong>Speed</strong> → <strong>Optimization</strong></li>
+                    <li>Enable <strong>Auto Minify</strong> for:
+                        <ul>
+                            <li>JavaScript</li>
+                            <li>CSS</li>
+                            <li>HTML</li>
+                        </ul>
+                    </li>
+                    <li>Save</li>
+                </ol>
+
+                <h3>Step 12: Security Settings (Optional)</h3>
+                <p>Default settings are fine, but you can enhance:</p>
+                <ol>
+                    <li>Go to: <strong>Security</strong> → <strong>Settings</strong></li>
+                    <li><strong>Security Level:</strong> Medium (default)</li>
+                    <li><strong>Challenge Passage:</strong> 30 minutes (default)</li>
+                    <li><strong>Browser Integrity Check:</strong> ON (recommended)</li>
+                </ol>
+            </section>
+
+            <section class="section">
+                <h2>Part 6: Get Cloudflare API Token</h2>
+
+                <h3>Step 13: Create API Token for Automation</h3>
+                <p><strong>This enables the automation script to manage DNS programmatically</strong></p>
+
+                <ol>
+                    <li>Go to: Cloudflare Dashboard → <strong>Profile</strong> (top right)</li>
+                    <li>Click <strong>"API Tokens"</strong></li>
+                    <li>Click <strong>"Create Token"</strong></li>
+                    <li>Find template: <strong>"Edit zone DNS"</strong></li>
+                    <li>Click <strong>"Use template"</strong></li>
+                </ol>
+
+                <p><strong>Configure token:</strong></p>
+                <ul>
+                    <li><strong>Permissions:</strong> Zone / DNS / Edit ✓</li>
+                    <li><strong>Zone Resources:</strong>
+                        <ul>
+                            <li>Include / Specific zone / <code>freebeer.ai</code></li>
+                        </ul>
+                    </li>
+                    <li><strong>IP Address Filtering:</strong> (leave blank for now)</li>
+                </ul>
+
+                <ol start="6">
+                    <li>Click <strong>"Continue to summary"</strong></li>
+                    <li>Review permissions</li>
+                    <li>Click <strong>"Create Token"</strong></li>
+                </ol>
+
+                <div class="alert alert-error">
+                    <strong>IMPORTANT:</strong> Copy the token NOW
+                    <pre><code>Cloudflare API Token: [long string starting with underscore]</code></pre>
+                </div>
+
+                <p><strong>Save this token:</strong> You'll add it to your environment variables:</p>
+                <pre><code># Add to ~/.zshrc
+export CLOUDFLARE_API_TOKEN="your_token_here"</code></pre>
+
+                <p><strong>Also get your Zone ID:</strong></p>
+                <ol>
+                    <li>Go back to Cloudflare dashboard</li>
+                    <li>Click on <strong>freebeer.ai</strong> domain</li>
+                    <li>Scroll down on Overview page</li>
+                    <li>Find <strong>"Zone ID"</strong> on the right side</li>
+                    <li>Copy it</li>
+                </ol>
+
+                <pre><code># Add to ~/.zshrc
+export CLOUDFLARE_ZONE_ID="your_zone_id_here"</code></pre>
+            </section>
+
+            <section class="section">
+                <h2>Part 7: Test API Access</h2>
+
+                <h3>Step 14: Verify API Token Works</h3>
+                <pre><code># Source your .zshrc to load new variables
+source ~/.zshrc
+
+# Test API access
+curl -X GET "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json"</code></pre>
+
+                <p><strong>Expected result:</strong> JSON response listing all your DNS records</p>
+
+                <div class="alert alert-warning">
+                    <strong>If you get an error:</strong> Double-check token and zone ID are correct
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>Part 8: Add Client Subdomain Pattern (Test)</h2>
+
+                <h3>Step 15: Test Adding a Client Subdomain via API</h3>
+                <p>Let's test the automation by adding a test client subdomain:</p>
+
+                <pre><code># Add a test dev subdomain
+curl -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "CNAME",
+    "name": "test-client.dev",
+    "content": "cname.vercel-dns.com",
+    "ttl": 300,
+    "proxied": false
+  }'</code></pre>
+
+                <p><strong>Expected result:</strong> JSON response with <code>"success": true</code></p>
+
+                <p><strong>Verify in Cloudflare dashboard:</strong></p>
+                <ol>
+                    <li>Go to: DNS → Records</li>
+                    <li>Look for: <code>test-client.dev</code> CNAME record</li>
+                    <li>Should point to: <code>cname.vercel-dns.com</code></li>
+                </ol>
+
+                <p><strong>Test it works:</strong></p>
+                <pre><code>dig test-client.dev.freebeer.ai
+
+# Should show:
+# test-client.dev.freebeer.ai. 300 IN CNAME cname.vercel-dns.com.</code></pre>
+
+                <div class="alert alert-success">
+                    <strong>Success!</strong> Your API automation is working!
+                </div>
+
+                <p><strong>Clean up the test record</strong> (via Cloudflare dashboard or API):</p>
+                <pre><code># List records to find the ID
+curl -X GET "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records?name=test-client.dev.freebeer.ai" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+
+# Delete using the record ID from response
+curl -X DELETE "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records/[RECORD_ID]" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"</code></pre>
+            </section>
+
+            <section class="section">
+                <h2>Completion Checklist</h2>
+                <ul>
+                    <li>Cloudflare account created</li>
+                    <li>freebeer.ai added to Cloudflare</li>
+                    <li>All DNS records reviewed and confirmed</li>
+                    <li>Nameservers updated at GoDaddy</li>
+                    <li>DNS propagation complete (24-48 hours)</li>
+                    <li>All existing sites verified working</li>
+                    <li>SSL/TLS set to "Full (strict)"</li>
+                    <li>API token created and saved</li>
+                    <li>Zone ID saved</li>
+                    <li>Environment variables added to ~/.zshrc</li>
+                    <li>API access tested successfully</li>
+                    <li>Test subdomain created and verified via API</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Troubleshooting</h2>
+
+                <h3>"Sites not loading after migration"</h3>
+                <p><strong>Check:</strong></p>
+                <ol>
+                    <li>DNS propagation complete? (use whatsmydns.net)</li>
+                    <li>SSL mode set to "Full (strict)"? (Cloudflare dashboard)</li>
+                    <li>All DNS records copied correctly? (compare SiteGround vs Cloudflare)</li>
+                </ol>
+                <p><strong>Fix:</strong> Wait longer (up to 48 hours) or clear browser cache</p>
+
+                <h3>"API token not working"</h3>
+                <p><strong>Check:</strong></p>
+                <ol>
+                    <li>Token copied correctly? (no extra spaces)</li>
+                    <li>Zone ID correct?</li>
+                    <li>Token has "Edit zone DNS" permission?</li>
+                </ol>
+                <p><strong>Fix:</strong> Create new token, ensure permissions are correct</p>
+
+                <h3>"Cloudflare shows nameservers not detected"</h3>
+                <p><strong>Check:</strong></p>
+                <ol>
+                    <li>Nameservers updated at GoDaddy? (check GoDaddy dashboard)</li>
+                    <li>Correct Cloudflare nameservers used? (check Cloudflare setup page)</li>
+                </ol>
+                <p><strong>Fix:</strong> Wait 24-48 hours, Cloudflare checks periodically</p>
+            </section>
+
+            <section class="section">
+                <h2>Next Steps</h2>
+                <p>Once Cloudflare migration is complete:</p>
+                <ol>
+                    <li>✅ Phase 1 complete!</li>
+                    <li>→ Proceed to Phase 2: Create client template repository</li>
+                    <li>→ Build automation script that uses Cloudflare API</li>
+                </ol>
+            </section>
+
+            <footer class="page-footer">
+                <p>Free Beer Studio Internal Documentation</p>
+                <p class="meta">Last updated: December 6, 2025</p>
+            </footer>
+        </main>
+    </div>
+
+    <script src="/js/nav.js"></script>
+</body>
+</html>

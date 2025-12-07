@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Client Development Pipeline Guide - Free Beer Studio Docs</title>
+    <meta name="description" content="Complete guide to scaling the PAI Dashboard CI/CD pipeline to support multiple client projects">
+    <link rel="stylesheet" href="/css/docs.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h1>Free Beer Studio</h1>
+                <p class="subtitle">Internal Docs</p>
+            </div>
+
+            <div class="nav-section">
+                <h3>Getting Started</h3>
+                <ul>
+                    <li><a href="/">Overview</a></li>
+                    <li><a href="/getting-started/quick-start.html">Quick Start</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <h3>Automation</h3>
+                <ul>
+                    <li><a href="/automation/multi-client-pipeline.html">Multi-Client Pipeline</a></li>
+                    <li><a href="/automation/phase-4-testing.html">Phase 4 Testing Results</a></li>
+                    <li><a href="/automation/lessons-learned.html">Lessons Learned</a></li>
+                    <li><a href="/automation/onboarding-script.html">Onboarding Script Reference</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <h3>Infrastructure</h3>
+                <ul>
+                    <li><a href="/infrastructure/cloudflare.html">Cloudflare DNS</a></li>
+                    <li><a href="/infrastructure/vercel.html">Vercel Deployment</a></li>
+                    <li><a href="/infrastructure/github-actions.html">GitHub Actions</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <h3>Templates</h3>
+                <ul>
+                    <li><a href="/templates/client-template.html">Client Template</a></li>
+                    <li><a href="/templates/workflow-templates.html">Workflow Templates</a></li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="content">
+            <header class="page-header">
+                <h1>Multi-Client Development Pipeline Guide</h1>
+                <p class="lead">Scale the PAI Dashboard CI/CD pipeline to support multiple client projects</p>
+            </header>
+
+            <div class="alert alert-info">
+                <strong>Date:</strong> December 6, 2025<br>
+                <strong>Purpose:</strong> Complete guide for managing multiple client projects with professional dev → staging → production pipeline
+            </div>
+
+            <section class="section">
+                <h2>Architecture Overview</h2>
+
+                <h3>The Challenge</h3>
+                <p>You need to build multiple client applications with the same dev → staging → production pipeline, while maintaining:</p>
+                <ul>
+                    <li>Isolation between client projects</li>
+                    <li>Professional development workflow</li>
+                    <li>Clear handoff to client domains at production</li>
+                </ul>
+
+                <h3>The Solution</h3>
+                <p>Each client gets:</p>
+                <ol>
+                    <li><strong>Dedicated GitHub repository</strong></li>
+                    <li><strong>Dedicated Vercel project</strong></li>
+                    <li><strong>Subdomain-based dev/staging</strong> (under freebeer.ai)</li>
+                    <li><strong>Client's domain for production</strong></li>
+                </ol>
+            </section>
+
+            <section class="section">
+                <h2>DNS Structure</h2>
+
+                <h3>Pattern for Each Client</h3>
+                <pre><code>┌─────────────────────────────────────────────────────────────┐
+│  CLIENT: Acme Coffee Shop                                   │
+│  Repository: freebeerstudio/acme-coffee                      │
+│  Vercel Project: acme-coffee                                 │
+└─────────────────────────────────────────────────────────────┘
+
+Development:   acme.dev.freebeer.ai
+               ↳ DNS: Cloudflare (freebeer.ai)
+               ↳ CNAME → cname.vercel-dns.com
+               ↳ You control entirely
+
+Staging:       acme.staging.freebeer.ai
+               ↳ DNS: Cloudflare (freebeer.ai)
+               ↳ CNAME → cname.vercel-dns.com
+               ↳ Show clients for UAT
+
+Production:    acmecoffee.com
+               ↳ DNS: Client's registrar (GoDaddy, etc.)
+               ↳ CNAME www → cname.vercel-dns.com
+               ↳ A @ → 76.76.21.21 (Vercel)
+               ↳ Client owns domain</code></pre>
+
+                <h3>Why This Pattern</h3>
+
+                <p><strong>Your Subdomains (dev/staging):</strong></p>
+                <ul>
+                    <li>You maintain full control during development</li>
+                    <li>No coordination needed with client</li>
+                    <li>Easy to create/destroy as projects come and go</li>
+                    <li>Professional preview URLs for client feedback</li>
+                </ul>
+
+                <p><strong>Client's Domain (production):</strong></p>
+                <ul>
+                    <li>Client owns their brand</li>
+                    <li>No dependency on Free Beer Studio after handoff</li>
+                    <li>Standard industry practice</li>
+                    <li>Client can move to different host if needed</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Repository Structure</h2>
+
+                <h3>Option 1: Separate Repos (Recommended)</h3>
+                <pre><code>GitHub Organization: freebeerstudio
+
+freebeerstudio/
+├── pai-dashboard/              # Your internal dashboard
+├── acme-coffee/                # Client: Acme Coffee Shop
+├── wellness-center/            # Client: Wellness Center
+├── local-bakery/               # Client: Local Bakery
+└── client-template/            # Template for new clients</code></pre>
+
+                <p><strong>Advantages:</strong></p>
+                <ul>
+                    <li>Clean isolation between clients</li>
+                    <li>Separate access control (invite client to their repo only)</li>
+                    <li>Independent deployment histories</li>
+                    <li>Easy to archive/transfer when project ends</li>
+                    <li>GitHub Actions minutes tracked per repo</li>
+                </ul>
+
+                <p><strong>Disadvantages:</strong></p>
+                <ul>
+                    <li>More repos to manage</li>
+                    <li>Need to replicate workflow files (solved with templates)</li>
+                </ul>
+
+                <h3>Option 2: Monorepo</h3>
+                <pre><code>freebeerstudio/client-sites/
+├── apps/
+│   ├── acme-coffee/
+│   ├── wellness-center/
+│   └── local-bakery/
+├── packages/
+│   └── shared-components/
+└── .github/workflows/</code></pre>
+
+                <p><strong>Advantages:</strong></p>
+                <ul>
+                    <li>Share code/components easily</li>
+                    <li>Single place for common configurations</li>
+                    <li>Easier dependency updates</li>
+                </ul>
+
+                <p><strong>Disadvantages:</strong></p>
+                <ul>
+                    <li>Complex deployment setup</li>
+                    <li>Hard to give clients access to just their project</li>
+                    <li>All or nothing repository access</li>
+                </ul>
+
+                <div class="alert alert-success">
+                    <strong>Recommendation:</strong> Start with separate repos, use a template to standardize.
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>DNS Configuration by Environment</h2>
+
+                <h3>1. Development (*.dev.freebeer.ai)</h3>
+                <p><strong>Your Cloudflare DNS:</strong></p>
+                <pre><code>Record Type: CNAME
+Name: acme.dev
+Value: cname.vercel-dns.com
+TTL: 300 (5 minutes)</code></pre>
+
+                <p><strong>Steps:</strong></p>
+                <ol>
+                    <li>Log into Cloudflare</li>
+                    <li>Navigate to: DNS → Records for freebeer.ai</li>
+                    <li>Add CNAME record as above</li>
+                    <li>Repeat for each client (<code>clientname.dev</code>)</li>
+                </ol>
+
+                <p><strong>Result:</strong> <code>acme.dev.freebeer.ai</code> → Vercel → Deployed app</p>
+
+                <h3>2. Staging (*.staging.freebeer.ai)</h3>
+                <p><strong>Your Cloudflare DNS:</strong></p>
+                <pre><code>Record Type: CNAME
+Name: acme.staging
+Value: cname.vercel-dns.com
+TTL: 300</code></pre>
+
+                <p>Same process as dev, just different subdomain.</p>
+
+                <h3>3. Production (clientdomain.com)</h3>
+                <p><strong>Client's DNS (they manage):</strong></p>
+
+                <p>Two options depending on their setup:</p>
+
+                <h4>Option A: Subdomain (www.acmecoffee.com)</h4>
+                <pre><code>Record Type: CNAME
+Name: www
+Value: cname.vercel-dns.com
+TTL: 3600</code></pre>
+
+                <h4>Option B: Root Domain (acmecoffee.com)</h4>
+                <pre><code>Record Type: A
+Name: @ (or blank)
+Value: 76.76.21.21
+TTL: 3600
+
+Record Type: CNAME
+Name: www
+Value: cname.vercel-dns.com
+TTL: 3600</code></pre>
+
+                <div class="alert alert-info">
+                    <strong>Note:</strong> Some DNS providers support ALIAS or ANAME records for root domains, which is cleaner than A records.<br>
+                    <strong>Vercel IP Address:</strong> 76.76.21.21 (verify current IP at <a href="https://vercel.com/docs/projects/domains" target="_blank">Vercel docs</a>)
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>Vercel Project Setup</h2>
+
+                <h3>For Each Client</h3>
+
+                <p><strong>1. Create New Project:</strong></p>
+                <pre><code>cd ~/PAI/Workshop/client-sites/acme-coffee
+vercel --prod</code></pre>
+
+                <p><strong>2. Add Domains in Vercel Dashboard:</strong></p>
+                <ul>
+                    <li>Go to: https://vercel.com/freebeerstudio/acme-coffee/settings/domains</li>
+                    <li>Add three domains:
+                        <ul>
+                            <li><code>acme.dev.freebeer.ai</code> (Development)</li>
+                            <li><code>acme.staging.freebeer.ai</code> (Staging)</li>
+                            <li><code>acmecoffee.com</code> (Production)</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <p><strong>3. Configure Environment Variables:</strong></p>
+                <ul>
+                    <li>Development: Set <code>NEXT_PUBLIC_APP_URL=https://acme.dev.freebeer.ai</code></li>
+                    <li>Staging: Set <code>NEXT_PUBLIC_APP_URL=https://acme.staging.freebeer.ai</code></li>
+                    <li>Production: Set <code>NEXT_PUBLIC_APP_URL=https://acmecoffee.com</code></li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>GitHub Repository Template</h2>
+
+                <h3>Create a Template Repository</h3>
+
+                <p><strong>1. Create new repo:</strong> <code>freebeerstudio/client-template</code></p>
+
+                <p><strong>2. Include:</strong></p>
+                <pre><code>client-template/
+├── .github/workflows/
+│   ├── dev-deploy.yml
+│   ├── staging-deploy.yml
+│   └── production-deploy.yml
+├── app/                    # Next.js app directory
+├── public/
+├── package.json
+├── .env.example
+├── .gitignore
+├── README.md
+└── SETUP.md                # Client-specific setup instructions</code></pre>
+
+                <p><strong>3. Mark as template:</strong> Settings → Template repository ✓</p>
+
+                <h3>Using the Template</h3>
+
+                <p><strong>For each new client:</strong></p>
+                <ol>
+                    <li>Click "Use this template" → "Create a new repository"</li>
+                    <li>Name it: <code>acme-coffee</code></li>
+                    <li>Clone locally</li>
+                    <li>Update branding/configuration</li>
+                    <li>Deploy to Vercel</li>
+                    <li>Configure DNS</li>
+                    <li>Add GitHub Secrets</li>
+                </ol>
+            </section>
+
+            <section class="section">
+                <h2>GitHub Actions Workflows</h2>
+
+                <h3>Template Workflow Pattern</h3>
+                <p>Each client repo needs the same three workflows with client-specific domains.</p>
+
+                <p><strong>Example: dev-deploy.yml</strong></p>
+                <pre><code>name: Deploy to Development
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+          # CLIENT-SPECIFIC: Update these for each project
+          NEXT_PUBLIC_APP_NAME: "Acme Coffee Shop - Dev"
+          NEXT_PUBLIC_APP_URL: "https://acme.dev.freebeer.ai"
+
+      - name: Deploy to Vercel (Development)
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+
+      - name: Comment on commit
+        if: success()
+        run: |
+          echo "✅ Successfully deployed to acme.dev.freebeer.ai"</code></pre>
+
+                <p><strong>Key Changes Per Client:</strong></p>
+                <ul>
+                    <li><code>NEXT_PUBLIC_APP_NAME</code>: Client branding</li>
+                    <li><code>NEXT_PUBLIC_APP_URL</code>: Client's dev domain</li>
+                    <li>Success message: Client's dev URL</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Setup Checklist for New Client</h2>
+
+                <h3>Pre-Development</h3>
+                <ul>
+                    <li>Client meeting - gather requirements</li>
+                    <li>Domain name confirmed (for production)</li>
+                    <li>Brand assets received (logo, colors, fonts)</li>
+                    <li>Content/copy provided or scheduled</li>
+                </ul>
+
+                <h3>Repository Setup</h3>
+                <ul>
+                    <li>Create repo from template: <code>freebeerstudio/client-name</code></li>
+                    <li>Clone locally: <code>git clone git@github.com:freebeerstudio/client-name.git</code></li>
+                    <li>Update <code>package.json</code> with client name</li>
+                    <li>Update <code>README.md</code> with client-specific info</li>
+                    <li>Initial commit and push</li>
+                </ul>
+
+                <h3>DNS Configuration (Your Side)</h3>
+                <ul>
+                    <li>Add <code>clientname.dev.freebeer.ai</code> CNAME in Cloudflare</li>
+                    <li>Add <code>clientname.staging.freebeer.ai</code> CNAME in Cloudflare</li>
+                    <li>Wait for DNS propagation (5-15 minutes)</li>
+                    <li>Verify: <code>dig clientname.dev.freebeer.ai</code> shows CNAME</li>
+                </ul>
+
+                <h3>Vercel Setup</h3>
+                <ul>
+                    <li>Create new Vercel project linked to GitHub repo</li>
+                    <li>Note <code>VERCEL_PROJECT_ID</code> from <code>.vercel/project.json</code></li>
+                    <li>Add domains in Vercel dashboard:
+                        <ul>
+                            <li><code>clientname.dev.freebeer.ai</code></li>
+                            <li><code>clientname.staging.freebeer.ai</code></li>
+                            <li><code>clientdomain.com</code> (add later, before production deploy)</li>
+                        </ul>
+                    </li>
+                    <li>Configure environment variables for each environment</li>
+                </ul>
+
+                <h3>GitHub Actions</h3>
+                <ul>
+                    <li>Add GitHub Secrets:
+                        <ul>
+                            <li><code>VERCEL_TOKEN</code> (same for all clients)</li>
+                            <li><code>VERCEL_ORG_ID</code> (same for all clients)</li>
+                            <li><code>VERCEL_PROJECT_ID</code> (unique per client)</li>
+                        </ul>
+                    </li>
+                    <li>Update workflow files with client-specific URLs</li>
+                    <li>Test dev auto-deploy with test commit</li>
+                </ul>
+
+                <h3>Pre-Production</h3>
+                <ul>
+                    <li>Client reviews staging site</li>
+                    <li>Client approves for production</li>
+                    <li>Client provides access to their DNS (or DNS instructions)</li>
+                    <li>Schedule production deployment</li>
+                </ul>
+
+                <h3>Production Launch</h3>
+                <ul>
+                    <li>Add <code>clientdomain.com</code> to Vercel project</li>
+                    <li>Client configures DNS (CNAME or A record)</li>
+                    <li>Wait for DNS propagation + SSL provisioning</li>
+                    <li>Create production tag: <code>git tag -a v1.0.0 -m "Production launch"</code></li>
+                    <li>Push tag: <code>git push origin v1.0.0</code></li>
+                    <li>Verify production site is live</li>
+                    <li>Celebrate!</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Example: Full Client Setup</h2>
+
+                <h3>Acme Coffee Shop</h3>
+
+                <p><strong>Client Info:</strong></p>
+                <ul>
+                    <li>Business: Acme Coffee Shop</li>
+                    <li>Production Domain: <code>acmecoffee.com</code></li>
+                    <li>Repository: <code>freebeerstudio/acme-coffee</code></li>
+                </ul>
+
+                <h4>1. Create Repository</h4>
+                <pre><code># Use template on GitHub UI
+# Clone locally
+cd ~/PAI/Workshop/client-sites
+git clone git@github.com:freebeerstudio/acme-coffee.git
+cd acme-coffee</code></pre>
+
+                <h4>2. Configure DNS (Cloudflare)</h4>
+                <p>Add two CNAME records to <code>freebeer.ai</code>:</p>
+                <pre><code>Name: acme.dev          Value: cname.vercel-dns.com
+Name: acme.staging      Value: cname.vercel-dns.com</code></pre>
+
+                <h4>3. Deploy to Vercel</h4>
+                <pre><code># First deployment
+vercel --prod
+# Follow prompts, link to new project
+
+# Note the project ID
+cat .vercel/project.json
+# Copy projectId: prj_xxxxx</code></pre>
+
+                <h4>4. Add Domains in Vercel</h4>
+                <p>Dashboard → acme-coffee → Settings → Domains:</p>
+                <pre><code>acme.dev.freebeer.ai
+acme.staging.freebeer.ai
+(acmecoffee.com - add later)</code></pre>
+
+                <h4>5. Add GitHub Secrets</h4>
+                <p>Settings → Secrets and variables → Actions:</p>
+                <pre><code>VERCEL_TOKEN=trq9OpaIp7ZprCnXEp7edunz
+VERCEL_ORG_ID=team_1EitYv6CCRydiKfiQvChvQS0
+VERCEL_PROJECT_ID=prj_xxxxx (from step 3)</code></pre>
+
+                <h4>6. Update Workflows</h4>
+                <p>Edit <code>.github/workflows/dev-deploy.yml</code>:</p>
+                <pre><code>env:
+  NEXT_PUBLIC_APP_NAME: "Acme Coffee Shop - Dev"
+  NEXT_PUBLIC_APP_URL: "https://acme.dev.freebeer.ai"</code></pre>
+
+                <p>Repeat for <code>staging-deploy.yml</code> and <code>production-deploy.yml</code>.</p>
+
+                <h4>7. Test Dev Deployment</h4>
+                <pre><code>git add .
+git commit -m "Initial setup for Acme Coffee"
+git push origin main
+
+# Watch workflow
+gh run watch</code></pre>
+
+                <p>Verify at: <code>https://acme.dev.freebeer.ai</code></p>
+
+                <h4>8. Before Production</h4>
+                <p>Client configures DNS for <code>acmecoffee.com</code>:</p>
+                <pre><code>Record Type: CNAME
+Name: www
+Value: cname.vercel-dns.com
+
+Record Type: A
+Name: @
+Value: 76.76.21.21</code></pre>
+
+                <p>Add domain in Vercel, wait for SSL.</p>
+
+                <h4>9. Production Deploy</h4>
+                <pre><code>git tag -a v1.0.0 -m "Acme Coffee production launch"
+git push origin v1.0.0</code></pre>
+
+                <p>Site live at: <code>https://acmecoffee.com</code></p>
+            </section>
+
+            <section class="section">
+                <h2>Scaling Considerations</h2>
+
+                <h3>Managing Multiple Clients</h3>
+                <p><strong>Organization:</strong></p>
+                <pre><code>~/PAI/Workshop/client-sites/
+├── acme-coffee/
+├── wellness-center/
+├── local-bakery/
+└── template/</code></pre>
+
+                <h3>DNS Management</h3>
+                <ul>
+                    <li><strong>Subdomain Limit:</strong> Cloudflare allows unlimited subdomains</li>
+                    <li><strong>Organization:</strong> Use consistent naming: <code>clientname.dev.freebeer.ai</code></li>
+                    <li>Document in spreadsheet or tracking file</li>
+                </ul>
+
+                <h3>Vercel Project Limits</h3>
+                <table>
+                    <tr>
+                        <th>Tier</th>
+                        <th>Cost</th>
+                        <th>Deployments</th>
+                    </tr>
+                    <tr>
+                        <td>Free</td>
+                        <td>$0</td>
+                        <td>100/month per project</td>
+                    </tr>
+                    <tr>
+                        <td>Pro</td>
+                        <td>~$20/month</td>
+                        <td>Unlimited</td>
+                    </tr>
+                </table>
+
+                <p><strong>Strategy:</strong></p>
+                <ul>
+                    <li>Each client = separate Vercel project</li>
+                    <li>Bill client for Vercel Pro if needed</li>
+                    <li>Or: Bundle hosting into your service fee</li>
+                </ul>
+
+                <h3>GitHub Actions Minutes</h3>
+                <ul>
+                    <li><strong>Free Tier:</strong> 2,000 minutes/month</li>
+                    <li><strong>Each deployment:</strong> ~1-2 minutes</li>
+                </ul>
+
+                <p><strong>Estimate:</strong></p>
+                <ul>
+                    <li>10 clients × 20 deploys/month × 2 min = 400 minutes</li>
+                    <li>Well within free tier</li>
+                    <li>Scales to ~30-40 active clients before needing paid plan</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Best Practices</h2>
+
+                <h3>Repository Management</h3>
+                <ul>
+                    <li><strong>Use templates:</strong> Standardize setup, save time</li>
+                    <li><strong>Branch protection:</strong> Require PR reviews before merging to main</li>
+                    <li><strong>Semantic versioning:</strong> Tag releases properly (v1.0.0, v1.1.0)</li>
+                    <li><strong>README:</strong> Client-specific setup and maintenance docs</li>
+                </ul>
+
+                <h3>DNS Management</h3>
+                <ul>
+                    <li><strong>Document everything:</strong> Keep spreadsheet of all domains</li>
+                    <li><strong>TTL settings:</strong> Use 300 (5 min) for dev, 3600 (1 hour) for production</li>
+                    <li><strong>Subdomain naming:</strong> Keep it simple and consistent</li>
+                    <li><strong>SSL certs:</strong> Let Vercel handle it (automatic)</li>
+                </ul>
+
+                <h3>Client Communication</h3>
+                <ul>
+                    <li><strong>Share staging URL:</strong> Let them see work in progress</li>
+                    <li><strong>UAT on staging:</strong> Get formal approval before production</li>
+                    <li><strong>Production checklist:</strong> Walk through launch steps together</li>
+                    <li><strong>Training:</strong> Show them how to request updates</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Troubleshooting</h2>
+
+                <h3>"Domain already exists in another project"</h3>
+                <p><strong>Issue:</strong> You added domain to wrong Vercel project</p>
+                <p><strong>Fix:</strong> Remove from other project first, then add to correct one</p>
+
+                <h3>"SSL provisioning failed"</h3>
+                <p><strong>Issue:</strong> DNS not configured correctly</p>
+                <p><strong>Fix:</strong> Verify CNAME/A record, wait 24 hours for propagation</p>
+
+                <h3>"Workflow failing on client repo"</h3>
+                <p><strong>Issue:</strong> GitHub Secrets not set</p>
+                <p><strong>Fix:</strong> Add all three secrets (TOKEN, ORG_ID, PROJECT_ID)</p>
+
+                <h3>"Client can't see their domain"</h3>
+                <p><strong>Issue:</strong> DNS not propagated yet</p>
+                <p><strong>Fix:</strong> Check with <code>dig clientdomain.com</code>, wait longer</p>
+            </section>
+
+            <footer class="page-footer">
+                <p>Free Beer Studio Internal Documentation</p>
+                <p class="meta">Last updated: December 6, 2025</p>
+            </footer>
+        </main>
+    </div>
+
+    <script src="/js/nav.js"></script>
+</body>
+</html>

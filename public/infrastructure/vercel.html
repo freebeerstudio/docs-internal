@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vercel Deployment Guide - Free Beer Studio Docs</title>
+    <meta name="description" content="Complete guide to deploying and managing projects on Vercel">
+    <link rel="stylesheet" href="/css/docs.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h1>Free Beer Studio</h1>
+                <p class="subtitle">Internal Docs</p>
+            </div>
+
+            <div class="nav-section">
+                <h3>Getting Started</h3>
+                <ul>
+                    <li><a href="/">Overview</a></li>
+                    <li><a href="/getting-started/quick-start.html">Quick Start</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <h3>Automation</h3>
+                <ul>
+                    <li><a href="/automation/multi-client-pipeline.html">Multi-Client Pipeline</a></li>
+                    <li><a href="/automation/phase-4-testing.html">Phase 4 Testing Results</a></li>
+                    <li><a href="/automation/lessons-learned.html">Lessons Learned</a></li>
+                    <li><a href="/automation/onboarding-script.html">Onboarding Script Reference</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <h3>Infrastructure</h3>
+                <ul>
+                    <li><a href="/infrastructure/cloudflare.html">Cloudflare DNS</a></li>
+                    <li><a href="/infrastructure/vercel.html">Vercel Deployment</a></li>
+                    <li><a href="/infrastructure/github-actions.html">GitHub Actions</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <h3>Templates</h3>
+                <ul>
+                    <li><a href="/templates/client-template.html">Client Template</a></li>
+                    <li><a href="/templates/workflow-templates.html">Workflow Templates</a></li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="content">
+            <header class="page-header">
+                <h1>Vercel Deployment Guide</h1>
+                <p class="lead">Complete guide to deploying and managing projects on Vercel</p>
+            </header>
+
+            <div class="alert alert-info">
+                <strong>Platform:</strong> Vercel<br>
+                <strong>Organization:</strong> freebeerstudio<br>
+                <strong>Use Case:</strong> Client websites and applications
+            </div>
+
+            <section class="section">
+                <h2>Overview</h2>
+                <p>Vercel is our hosting platform for all client projects. It provides:</p>
+                <ul>
+                    <li>Automatic deployments from GitHub</li>
+                    <li>Free SSL certificates</li>
+                    <li>Global CDN</li>
+                    <li>Preview deployments for pull requests</li>
+                    <li>Environment variable management</li>
+                    <li>Custom domain support</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Creating a New Vercel Project</h2>
+
+                <h3>Method 1: Via Vercel CLI (Recommended)</h3>
+                <pre><code># Navigate to project directory
+cd ~/PAI/Workshop/client-sites/client-name
+
+# Initialize Vercel project
+vercel --prod
+
+# Follow prompts:
+# - Set up and deploy? Yes
+# - Which scope? freebeerstudio
+# - Link to existing project? No
+# - What's your project's name? client-name
+# - In which directory is your code? ./
+# - Want to modify settings? No</code></pre>
+
+                <p><strong>Result:</strong></p>
+                <ul>
+                    <li>Project created in Vercel dashboard</li>
+                    <li><code>.vercel/project.json</code> created locally</li>
+                    <li>Initial deployment to production</li>
+                </ul>
+
+                <h3>Method 2: Via Vercel Dashboard</h3>
+                <ol>
+                    <li>Go to: <a href="https://vercel.com/new" target="_blank">https://vercel.com/new</a></li>
+                    <li>Select "Import Git Repository"</li>
+                    <li>Choose GitHub organization: freebeerstudio</li>
+                    <li>Select repository: client-name</li>
+                    <li>Configure project:
+                        <ul>
+                            <li>Framework Preset: Next.js (or appropriate framework)</li>
+                            <li>Root Directory: ./</li>
+                            <li>Build Command: <code>npm run build</code></li>
+                            <li>Output Directory: <code>.next</code> (or appropriate)</li>
+                        </ul>
+                    </li>
+                    <li>Click "Deploy"</li>
+                </ol>
+            </section>
+
+            <section class="section">
+                <h2>Project Configuration</h2>
+
+                <h3>Getting Project IDs</h3>
+                <p>You'll need these IDs for GitHub Actions automation:</p>
+
+                <p><strong>Organization ID:</strong></p>
+                <pre><code># From Vercel CLI
+vercel teams ls
+
+# Output shows:
+# freebeerstudio (team_1EitYv6CCRydiKfiQvChvQS0)</code></pre>
+
+                <p><strong>Project ID:</strong></p>
+                <pre><code># From .vercel/project.json
+cat .vercel/project.json
+
+# Look for projectId
+{
+  "projectId": "prj_xxxxxxxxxxxxx",
+  "orgId": "team_1EitYv6CCRydiKfiQvChvQS0"
+}</code></pre>
+
+                <p><strong>Or from Vercel Dashboard:</strong></p>
+                <ol>
+                    <li>Go to project settings</li>
+                    <li>Scroll to "Project ID"</li>
+                    <li>Copy the ID</li>
+                </ol>
+
+                <h3>Environment Variables</h3>
+                <p>Configure different variables for each environment:</p>
+
+                <ol>
+                    <li>Go to: Project Settings → Environment Variables</li>
+                    <li>Add variables for each environment:
+                        <ul>
+                            <li><strong>Production</strong></li>
+                            <li><strong>Preview</strong></li>
+                            <li><strong>Development</strong></li>
+                        </ul>
+                    </li>
+                </ol>
+
+                <p><strong>Example environment variables:</strong></p>
+                <pre><code>NEXT_PUBLIC_APP_NAME="Client Name - Dev"
+NEXT_PUBLIC_APP_URL="https://client.dev.freebeer.ai"
+NEXT_PUBLIC_API_URL="https://api.example.com"</code></pre>
+            </section>
+
+            <section class="section">
+                <h2>Custom Domains</h2>
+
+                <h3>Adding Domains to Vercel Project</h3>
+                <p>Each client project typically has three domains:</p>
+                <ul>
+                    <li><strong>Development:</strong> client.dev.freebeer.ai</li>
+                    <li><strong>Staging:</strong> client.staging.freebeer.ai</li>
+                    <li><strong>Production:</strong> clientdomain.com</li>
+                </ul>
+
+                <h3>Via Vercel Dashboard</h3>
+                <ol>
+                    <li>Go to: Project → Settings → Domains</li>
+                    <li>Click "Add"</li>
+                    <li>Enter domain: <code>client.dev.freebeer.ai</code></li>
+                    <li>Click "Add"</li>
+                    <li>Repeat for staging and production domains</li>
+                </ol>
+
+                <h3>Via Vercel CLI</h3>
+                <pre><code># Add development domain
+npx vercel domains add client.dev.freebeer.ai
+
+# Add staging domain
+npx vercel domains add client.staging.freebeer.ai
+
+# Add production domain (client's domain)
+npx vercel domains add clientdomain.com</code></pre>
+
+                <h3>Domain Verification</h3>
+                <p>After adding a domain, Vercel will check DNS configuration:</p>
+
+                <p><strong>For subdomains (*.freebeer.ai):</strong></p>
+                <ul>
+                    <li>Vercel detects DNS automatically</li>
+                    <li>Usually verified within 1-5 minutes</li>
+                    <li>No additional configuration needed</li>
+                </ul>
+
+                <p><strong>For client domains:</strong></p>
+                <ul>
+                    <li>Client must add DNS records (see Cloudflare guide)</li>
+                    <li>Verification may take 24-48 hours</li>
+                    <li>SSL certificate provisioned automatically after verification</li>
+                </ul>
+
+                <h3>SSL Certificates</h3>
+                <p>Vercel automatically provisions SSL certificates for all domains:</p>
+                <ul>
+                    <li>Certificates are free and auto-renewing</li>
+                    <li>Uses Let's Encrypt</li>
+                    <li>No configuration required</li>
+                    <li>HTTPS enforced by default</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Deployment Methods</h2>
+
+                <h3>1. Automatic Deployments (GitHub Integration)</h3>
+                <p>When GitHub Actions is configured:</p>
+                <ul>
+                    <li>Push to <code>main</code> branch → Deploy to development</li>
+                    <li>Manual workflow trigger → Deploy to staging</li>
+                    <li>Tag push (<code>v*.*.*</code>) → Deploy to production</li>
+                </ul>
+
+                <h3>2. Manual CLI Deployment</h3>
+                <pre><code># Deploy to production
+vercel --prod
+
+# Deploy to preview (not production)
+vercel
+
+# Deploy with specific environment
+vercel --prod -e NEXT_PUBLIC_ENV=production</code></pre>
+
+                <h3>3. Via Vercel Dashboard</h3>
+                <ol>
+                    <li>Go to: Project → Deployments</li>
+                    <li>Click "..." on any deployment</li>
+                    <li>Click "Promote to Production"</li>
+                </ol>
+            </section>
+
+            <section class="section">
+                <h2>Deployment Workflows</h2>
+
+                <h3>Development Environment</h3>
+                <pre><code># Workflow: .github/workflows/dev-deploy.yml
+# Trigger: Push to main branch
+# Target: client.dev.freebeer.ai
+# Auto-deployment: Yes</code></pre>
+
+                <h3>Staging Environment</h3>
+                <pre><code># Workflow: .github/workflows/staging-deploy.yml
+# Trigger: Manual workflow dispatch
+# Target: client.staging.freebeer.ai
+# Auto-deployment: No (manual trigger)</code></pre>
+
+                <h3>Production Environment</h3>
+                <pre><code># Workflow: .github/workflows/production-deploy.yml
+# Trigger: Git tag push (v*.*.*)
+# Target: clientdomain.com
+# Auto-deployment: Yes (when tag is pushed)</code></pre>
+            </section>
+
+            <section class="section">
+                <h2>Monitoring Deployments</h2>
+
+                <h3>Vercel Dashboard</h3>
+                <ul>
+                    <li>Go to: <a href="https://vercel.com/freebeerstudio" target="_blank">Vercel Dashboard</a></li>
+                    <li>Select project</li>
+                    <li>View:
+                        <ul>
+                            <li>Deployment history</li>
+                            <li>Build logs</li>
+                            <li>Runtime logs</li>
+                            <li>Analytics</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3>Deployment Status</h3>
+                <table>
+                    <tr>
+                        <th>Status</th>
+                        <th>Meaning</th>
+                    </tr>
+                    <tr>
+                        <td>Building</td>
+                        <td>Running build process</td>
+                    </tr>
+                    <tr>
+                        <td>Ready</td>
+                        <td>Successfully deployed and live</td>
+                    </tr>
+                    <tr>
+                        <td>Error</td>
+                        <td>Build or deployment failed</td>
+                    </tr>
+                    <tr>
+                        <td>Canceled</td>
+                        <td>Deployment was canceled</td>
+                    </tr>
+                </table>
+
+                <h3>Build Logs</h3>
+                <p>To view build logs:</p>
+                <ol>
+                    <li>Click on deployment</li>
+                    <li>Click "Building" or "View Build Logs"</li>
+                    <li>Expand sections to see detailed output</li>
+                </ol>
+
+                <h3>Runtime Logs</h3>
+                <p>To view runtime logs:</p>
+                <ol>
+                    <li>Go to: Project → Logs</li>
+                    <li>Filter by:
+                        <ul>
+                            <li>Time range</li>
+                            <li>Deployment</li>
+                            <li>Log level (info, warning, error)</li>
+                        </ul>
+                    </li>
+                </ol>
+            </section>
+
+            <section class="section">
+                <h2>Vercel API Authentication</h2>
+
+                <h3>Creating a Vercel Token</h3>
+                <ol>
+                    <li>Go to: <a href="https://vercel.com/account/tokens" target="_blank">Account Settings → Tokens</a></li>
+                    <li>Click "Create Token"</li>
+                    <li>Name: "GitHub Actions - Free Beer Studio"</li>
+                    <li>Scope: freebeerstudio</li>
+                    <li>Expiration: No Expiration (or set custom)</li>
+                    <li>Click "Create"</li>
+                </ol>
+
+                <div class="alert alert-error">
+                    <strong>IMPORTANT:</strong> Copy the token immediately - you won't see it again!
+                </div>
+
+                <h3>Storing Token for Automation</h3>
+                <p><strong>For local development:</strong></p>
+                <pre><code># Add to ~/.zshrc
+export VERCEL_TOKEN="your_token_here"
+
+# Reload shell
+source ~/.zshrc</code></pre>
+
+                <p><strong>For GitHub Actions:</strong></p>
+                <ol>
+                    <li>Go to: Repository → Settings → Secrets</li>
+                    <li>Add secret:
+                        <ul>
+                            <li>Name: <code>VERCEL_TOKEN</code></li>
+                            <li>Value: [your token]</li>
+                        </ul>
+                    </li>
+                </ol>
+            </section>
+
+            <section class="section">
+                <h2>Project Limits & Pricing</h2>
+
+                <h3>Free Tier (Hobby)</h3>
+                <table>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Limit</th>
+                    </tr>
+                    <tr>
+                        <td>Deployments</td>
+                        <td>100/day</td>
+                    </tr>
+                    <tr>
+                        <td>Bandwidth</td>
+                        <td>100 GB/month</td>
+                    </tr>
+                    <tr>
+                        <td>Build Time</td>
+                        <td>6,000 minutes/month</td>
+                    </tr>
+                    <tr>
+                        <td>Custom Domains</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Team Members</td>
+                        <td>1 (personal)</td>
+                    </tr>
+                </table>
+
+                <h3>Pro Tier</h3>
+                <table>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Limit</th>
+                    </tr>
+                    <tr>
+                        <td>Cost</td>
+                        <td>$20/month per team member</td>
+                    </tr>
+                    <tr>
+                        <td>Deployments</td>
+                        <td>6,000/day</td>
+                    </tr>
+                    <tr>
+                        <td>Bandwidth</td>
+                        <td>1 TB/month</td>
+                    </tr>
+                    <tr>
+                        <td>Build Time</td>
+                        <td>24,000 minutes/month</td>
+                    </tr>
+                    <tr>
+                        <td>Custom Domains</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Team Members</td>
+                        <td>Unlimited</td>
+                    </tr>
+                </table>
+
+                <h3>Recommended Strategy</h3>
+                <ul>
+                    <li>Start with Free tier for testing</li>
+                    <li>Upgrade to Pro when:
+                        <ul>
+                            <li>You have 5+ active clients</li>
+                            <li>Bandwidth exceeds 100 GB/month</li>
+                            <li>You need team collaboration</li>
+                        </ul>
+                    </li>
+                    <li>Bill clients for Pro tier costs</li>
+                    <li>Or bundle into monthly service fee</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Troubleshooting</h2>
+
+                <h3>Build Failures</h3>
+                <p><strong>Common causes:</strong></p>
+                <ul>
+                    <li>Missing dependencies in <code>package.json</code></li>
+                    <li>Build script errors</li>
+                    <li>Environment variables not set</li>
+                    <li>Node version mismatch</li>
+                </ul>
+
+                <p><strong>Solutions:</strong></p>
+                <ol>
+                    <li>Check build logs for specific error</li>
+                    <li>Verify all dependencies are listed</li>
+                    <li>Test build locally: <code>npm run build</code></li>
+                    <li>Check environment variables are set</li>
+                </ol>
+
+                <h3>Domain Not Verified</h3>
+                <p><strong>Causes:</strong></p>
+                <ul>
+                    <li>DNS records not configured</li>
+                    <li>DNS not yet propagated</li>
+                    <li>Incorrect CNAME/A record</li>
+                </ul>
+
+                <p><strong>Solutions:</strong></p>
+                <ol>
+                    <li>Verify DNS records: <code>dig domain.com</code></li>
+                    <li>Wait 24-48 hours for propagation</li>
+                    <li>Check Cloudflare DNS settings</li>
+                </ol>
+
+                <h3>Deployment Not Showing Changes</h3>
+                <p><strong>Solutions:</strong></p>
+                <ol>
+                    <li>Clear browser cache (Cmd+Shift+R)</li>
+                    <li>Check deployment was successful</li>
+                    <li>Verify correct branch was deployed</li>
+                    <li>Check if domain is pointing to correct deployment</li>
+                </ol>
+
+                <h3>"Invalid Scope" Error</h3>
+                <p><strong>Cause:</strong> Token not scoped to organization</p>
+
+                <p><strong>Solution:</strong></p>
+                <ol>
+                    <li>Create new token</li>
+                    <li>Select "freebeerstudio" scope</li>
+                    <li>Update <code>VERCEL_TOKEN</code> secret</li>
+                </ol>
+            </section>
+
+            <section class="section">
+                <h2>Best Practices</h2>
+
+                <h3>Project Organization</h3>
+                <ul>
+                    <li>One Vercel project per client</li>
+                    <li>Use consistent naming: <code>client-name</code></li>
+                    <li>Link to GitHub repository</li>
+                    <li>Configure all three environments (dev, staging, prod)</li>
+                </ul>
+
+                <h3>Environment Variables</h3>
+                <ul>
+                    <li>Set different values for each environment</li>
+                    <li>Never commit secrets to repository</li>
+                    <li>Use <code>NEXT_PUBLIC_*</code> prefix for client-side variables</li>
+                    <li>Document all required variables in <code>.env.example</code></li>
+                </ul>
+
+                <h3>Deployments</h3>
+                <ul>
+                    <li>Always test in development first</li>
+                    <li>Get client approval on staging before production</li>
+                    <li>Use semantic versioning for production tags</li>
+                    <li>Keep deployment history clean (don't promote failed builds)</li>
+                </ul>
+
+                <h3>Monitoring</h3>
+                <ul>
+                    <li>Check deployments regularly</li>
+                    <li>Review runtime logs for errors</li>
+                    <li>Monitor bandwidth usage</li>
+                    <li>Set up alerts for failed deployments</li>
+                </ul>
+            </section>
+
+            <section class="section">
+                <h2>Quick Reference</h2>
+
+                <h3>Useful CLI Commands</h3>
+                <pre><code># Initialize new project
+vercel
+
+# Deploy to production
+vercel --prod
+
+# List deployments
+vercel ls
+
+# Get deployment logs
+vercel logs [deployment-url]
+
+# Add domain
+vercel domains add domain.com
+
+# Remove domain
+vercel domains rm domain.com
+
+# List environment variables
+vercel env ls
+
+# Add environment variable
+vercel env add VARIABLE_NAME</code></pre>
+
+                <h3>Important Links</h3>
+                <ul>
+                    <li><strong>Dashboard:</strong> <a href="https://vercel.com/freebeerstudio" target="_blank">https://vercel.com/freebeerstudio</a></li>
+                    <li><strong>Documentation:</strong> <a href="https://vercel.com/docs" target="_blank">https://vercel.com/docs</a></li>
+                    <li><strong>API Reference:</strong> <a href="https://vercel.com/docs/rest-api" target="_blank">https://vercel.com/docs/rest-api</a></li>
+                    <li><strong>Status Page:</strong> <a href="https://www.vercel-status.com/" target="_blank">https://www.vercel-status.com/</a></li>
+                </ul>
+            </section>
+
+            <footer class="page-footer">
+                <p>Free Beer Studio Internal Documentation</p>
+                <p class="meta">Last updated: December 6, 2025</p>
+            </footer>
+        </main>
+    </div>
+
+    <script src="/js/nav.js"></script>
+</body>
+</html>
